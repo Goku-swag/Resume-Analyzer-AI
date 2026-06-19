@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Resume Analyzer</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --panel-border: #262a36;
+    --accent: #7c5cff;
+    --accent-2: #29d3a2;
+    --text: #e8e9ee;
+    --muted: #9298a8;
+    --danger: #ff5c7c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: radial-gradient(circle at top, #1a1d29, var(--bg));
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 32px; }
+  header h1 {
+    font-size: 2.1rem;
+    margin: 0 0 8px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header p { color: var(--muted); margin: 0; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .dropzone {
+    border: 2px dashed var(--panel-border);
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  .dropzone.dragover { border-color: var(--accent); background: rgba(124,92,255,0.08); }
+  .dropzone p { margin: 6px 0; color: var(--muted); }
+  .dropzone strong { color: var(--text); }
+  #fileInput { display: none; }
+  #fileName { color: var(--accent-2); font-weight: 600; margin-top: 8px; min-height: 1.2em; }
+
+  textarea {
+    width: 100%;
+    min-height: 110px;
+    background: #0f1117;
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 12px;
+    font-family: inherit;
+    font-size: 0.92rem;
+    resize: vertical;
+    margin-top: 14px;
+  }
+  label.field-label { font-size: 0.85rem; color: var(--muted); display: block; margin-top: 16px; }
+
+  button#analyzeBtn {
+    margin-top: 18px;
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(90deg, var(--accent), #5b3df0);
+    color: white;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+  }
+  button#analyzeBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+  button#analyzeBtn:not(:disabled):hover { opacity: 0.92; }
+  button#analyzeBtn:not(:disabled):active { transform: scale(0.99); }
+
+  #status { text-align: center; margin-top: 12px; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+  #errorBox {
+    display: none;
+    background: rgba(255,92,124,0.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-top: 14px;
+    font-size: 0.9rem;
+  }
+
+  #results { display: none; }
+  .score-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .score-box {
+    flex: 1;
+    min-width: 140px;
+    background: #0f1117;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+  }
+  .score-box .num { font-size: 2rem; font-weight: 700; }
+  .score-box .label { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+
+  .score-good { color: var(--accent-2); }
+  .score-mid { color: #ffc857; }
+  .score-bad { color: var(--danger); }
+
+  h2.section-title {
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin: 28px 0 10px;
+  }
+  ul.bullets { padding-left: 20px; margin: 0; }
+  ul.bullets li { margin-bottom: 6px; line-height: 1.4; }
+
+  .tag-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag {
+    background: rgba(124,92,255,0.15);
+    border: 1px solid rgba(124,92,255,0.4);
+    color: var(--text);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+  }
+
+  .section-feedback-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .sf-item { background: #0f1117; border: 1px solid var(--panel-border); border-radius: 10px; padding: 10px 14px; }
+  .sf-item .k { color: var(--accent-2); font-weight: 600; font-size: 0.82rem; text-transform: capitalize; }
+  .sf-item .v { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+
+  .bullet-pair { background: #0f1117; border: 1px solid var(--panel-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .bullet-pair .orig { color: var(--danger); font-size: 0.85rem; text-decoration: line-through; opacity: 0.8; }
+  .bullet-pair .imp { color: var(--accent-2); font-size: 0.9rem; margin-top: 6px; }
+
+  footer { text-align: center; color: var(--muted); font-size: 0.78rem; margin-top: 30px; }
+  @media (max-width: 600px) { .section-feedback-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>AI Resume Analyzer</h1>
+    <p>Powered by Groq · Upload your resume and get instant, structured feedback</p>
+  </header>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <p><strong>Click to upload</strong> or drag and drop</p>
+      <p>PDF, DOCX, or TXT — max 5MB</p>
+      <div id="fileName"></div>
+    </div>
+    <input type="file" id="fileInput" accept=".pdf,.docx,.txt" />
+
+    <label class="field-label" for="jobDescription">Job description (optional — paste it to get a match score)</label>
+    <textarea id="jobDescription" placeholder="Paste the job description here for a tailored match score..."></textarea>
+
+    <button id="analyzeBtn" disabled>Analyze Resume</button>
+    <div id="status"></div>
+    <div id="errorBox"></div>
+  </div>
+
+  <div class="card" id="results"></div>
+
+  <footer>Your resume is sent to Groq's API for analysis and is not stored by this app.</footer>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileNameEl = document.getElementById('fileName');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const statusEl = document.getElementById('status');
+const errorBox = document.getElementById('errorBox');
+const resultsEl = document.getElementById('results');
+const jobDescriptionEl = document.getElementById('jobDescription');
+
+let selectedFile = null;
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) {
+    handleFile(e.dataTransfer.files[0]);
+  }
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+  const allowed = ['.pdf', '.docx', '.txt'];
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!allowed.includes(ext)) {
+    showError('Unsupported file type. Please upload a .pdf, .docx, or .txt file.');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showError('File is too large. Max size is 5MB.');
+    return;
+  }
+  selectedFile = file;
+  fileNameEl.textContent = '📄 ' + file.name;
+  analyzeBtn.disabled = false;
+  hideError();
+}
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.style.display = 'block';
+}
+function hideError() {
+  errorBox.style.display = 'none';
+  errorBox.textContent = '';
+}
+
+function scoreClass(score) {
+  if (score >= 75) return 'score-good';
+  if (score >= 50) return 'score-mid';
+  return 'score-bad';
+}
+
+analyzeBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  hideError();
+  resultsEl.style.display = 'none';
+  resultsEl.innerHTML = '';
+  analyzeBtn.disabled = true;
+  statusEl.textContent = 'Extracting text and analyzing with Groq... this can take 10-20s';
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  if (jobDescriptionEl.value.trim()) {
+    formData.append('job_description', jobDescriptionEl.value.trim());
+  }
+
+  try {
+    const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.detail || 'Something went wrong analyzing your resume.');
+    }
+
+    renderResults(data.analysis, data.filename);
+    statusEl.textContent = '';
+  } catch (err) {
+    showError(err.message || 'Network error — could not reach the server.');
+    statusEl.textContent = '';
+  } finally {
+    analyzeBtn.disabled = false;
+  }
+});
+
+function renderResults(a, filename) {
+  const scores = [
+    { label: 'Overall Score', value: a.overall_score },
+    { label: 'ATS Friendliness', value: a.ats_friendliness ? a.ats_friendliness.score : null },
+  ];
+  if (a.job_match_score !== null && a.job_match_score !== undefined) {
+    scores.push({ label: 'Job Match', value: a.job_match_score });
+  }
+
+  let html = `<h2 class="section-title">Results for ${escapeHtml(filename)}</h2>`;
+  html += `<p style="color:var(--muted)">${escapeHtml(a.summary || '')}</p>`;
+
+  html += '<div class="score-row">';
+  for (const s of scores) {
+    if (s.value === null || s.value === undefined) continue;
+    html += `<div class="score-box"><div class="num ${scoreClass(s.value)}">${s.value}</div><div class="label">${s.label}</div></div>`;
+  }
+  html += '</div>';
+
+  if (a.ats_friendliness && a.ats_friendliness.notes) {
+    html += `<p style="color:var(--muted); font-size:0.85rem; margin-top:10px;">${escapeHtml(a.ats_friendliness.notes)}</p>`;
+  }
+
+  html += renderList('Strengths', a.strengths);
+  html += renderList('Weaknesses', a.weaknesses);
+
+  if (a.missing_keywords && a.missing_keywords.length) {
+    html += '<h2 class="section-title">Missing Keywords</h2><div class="tag-list">';
+    for (const k of a.missing_keywords) html += `<span class="tag">${escapeHtml(k)}</span>`;
+    html += '</div>';
+  }
+
+  if (a.section_feedback) {
+    html += '<h2 class="section-title">Section Feedback</h2><div class="section-feedback-grid">';
+    for (const [k, v] of Object.entries(a.section_feedback)) {
+      html += `<div class="sf-item"><div class="k">${escapeHtml(k.replace(/_/g, ' '))}</div><div class="v">${escapeHtml(v)}</div></div>`;
+    }
+    html += '</div>';
+  }
+
+  html += renderList('Suggested Improvements', a.suggested_improvements);
+
+  if (a.rewritten_bullet_examples && a.rewritten_bullet_examples.length) {
+    html += '<h2 class="section-title">Bullet Point Rewrites</h2>';
+    for (const ex of a.rewritten_bullet_examples) {
+      if (!ex.improved) continue;
+      html += '<div class="bullet-pair">';
+      if (ex.original) html += `<div class="orig">${escapeHtml(ex.original)}</div>`;
+      html += `<div class="imp">→ ${escapeHtml(ex.improved)}</div>`;
+      html += '</div>';
+    }
+  }
+
+  resultsEl.innerHTML = html;
+  resultsEl.style.display = 'block';
+  resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderList(title, items) {
+  if (!items || !items.length) return '';
+  let html = `<h2 class="section-title">${title}</h2><ul class="bullets">`;
+  for (const item of items) html += `<li>${escapeHtml(item)}</li>`;
+  html += '</ul>';
+  return html;
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
